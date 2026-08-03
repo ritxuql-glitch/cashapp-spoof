@@ -9,17 +9,21 @@ jobs:
 
       - name: Unzip Project & Build IPA
         run: |
-          # Find and unzip any zipped .xcodeproj file
+          # Find and unzip project
           ZIPPED_PROJ=$(find . -name "*.xcodeproj.zip" | head -n 1)
 
           if [ -n "$ZIPPED_PROJ" ]; then
             echo "Unzipping project file at $ZIPPED_PROJ..."
             ZIP_DIR=$(dirname "$ZIPPED_PROJ")
             unzip -o "$ZIPPED_PROJ" -d "$ZIP_DIR"
+            
+            # Remove macOS metadata folders to avoid invalid file references
+            rm -rf "$ZIP_DIR/__MACOSX"
+            rm -rf ./__MACOSX
           fi
 
-          # Locate the extracted .xcodeproj file
-          PROJ_PATH=$(find . -name "*.xcodeproj" | head -n 1)
+          # Find the real .xcodeproj file
+          PROJ_PATH=$(find . -name "*.xcodeproj" -not -path "*/__MACOSX/*" | head -n 1)
 
           if [ -z "$PROJ_PATH" ]; then
             echo "::error::Could not find .xcodeproj file."
@@ -28,9 +32,9 @@ jobs:
 
           PROJ_DIR=$(dirname "$PROJ_PATH")
           PROJ_NAME=$(basename "$PROJ_PATH")
-          
-          # Extract scheme name without file extension
-          SCHEME=$(basename "$PROJ_NAME" .xcodeproj)
+
+          # Explicitly set the scheme name from the xcscheme file found in unzipped logs
+          SCHEME="CashappSpoof"
 
           echo "Found project: $PROJ_NAME"
           echo "Building scheme: $SCHEME"
@@ -46,12 +50,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-          # Create Payload and zip to IPA
+          # Create Payload directory and package IPA
           mkdir Payload
           cp -R build.xcarchive/Products/Applications/*.app Payload/
           zip -r App.ipa Payload
 
-          # Move completed IPA back to root directory
+          # Move completed IPA back to workspace root
           mv App.ipa "$GITHUB_WORKSPACE/App.ipa"
 
       - uses: actions/upload-artifact@v4
