@@ -1,64 +1,43 @@
-name: Build IPA
-on: workflow_dispatch
+name: Build iOS IPA
+
+on:
+  workflow_dispatch: # Allows you to manually trigger the build from the GitHub website
 
 jobs:
-  build:
+  build-ios:
     runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v4
+      # Step 1: Check out your repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Unzip Project & Build IPA
+      # Step 2: Set up Xcode environment
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      # Step 3: Clean & build the Xcode Archive
+      - name: Build Xcode Archive
         run: |
-          # Find and unzip project
-          ZIPPED_PROJ=$(find . -name "*.xcodeproj.zip" | head -n 1)
-
-          if [ -n "$ZIPPED_PROJ" ]; then
-            echo "Unzipping project file at $ZIPPED_PROJ..."
-            ZIP_DIR=$(dirname "$ZIPPED_PROJ")
-            unzip -o "$ZIPPED_PROJ" -d "$ZIP_DIR"
-            
-            # Remove macOS metadata folders to avoid invalid file references
-            rm -rf "$ZIP_DIR/__MACOSX"
-            rm -rf ./__MACOSX
-          fi
-
-          # Find the real .xcodeproj file
-          PROJ_PATH=$(find . -name "*.xcodeproj" -not -path "*/__MACOSX/*" | head -n 1)
-
-          if [ -z "$PROJ_PATH" ]; then
-            echo "::error::Could not find .xcodeproj file."
-            exit 1
-          fi
-
-          PROJ_DIR=$(dirname "$PROJ_PATH")
-          PROJ_NAME=$(basename "$PROJ_PATH")
-
-          # Explicitly set the scheme name from the xcscheme file found in unzipped logs
-          SCHEME="CashappSpoof"
-
-          echo "Found project: $PROJ_NAME"
-          echo "Building scheme: $SCHEME"
-
-          cd "$PROJ_DIR"
-
-          # Build Archive
           xcodebuild archive \
-            -project "$PROJ_NAME" \
-            -scheme "$SCHEME" \
-            -archivePath build.xcarchive \
+            -project YourApp.xcodeproj \
+            -scheme YourScheme \
+            -archivePath $RUNNER_TEMP/YourApp.xcarchive \
             -sdk iphoneos \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-          # Create Payload directory and package IPA
-          mkdir Payload
-          cp -R build.xcarchive/Products/Applications/*.app Payload/
-          zip -r App.ipa Payload
+      # Step 4: Convert the archive into a payload / IPA
+      - name: Package IPA
+        run: |
+          mkdir -p $RUNNER_TEMP/Payload
+          cp -R $RUNNER_TEMP/YourApp.xcarchive/Products/Applications/*.app $RUNNER_TEMP/Payload/
+          cd $RUNNER_TEMP
+          zip -r YourApp.ipa Payload
 
-          # Move completed IPA back to workspace root
-          mv App.ipa "$GITHUB_WORKSPACE/App.ipa"
-
-      - uses: actions/upload-artifact@v4
+      # Step 5: Upload the compiled .ipa file to GitHub Actions Artifacts
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: my-ipa-file
-          path: App.ipa
+          name: iOS-IPA-Build
+          path: ${{ runner.temp }}/YourApp.ipa
