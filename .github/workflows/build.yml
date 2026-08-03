@@ -9,40 +9,50 @@ jobs:
 
       - name: Build and Package IPA
         run: |
-          # Find the .xcodeproj file anywhere in the repo
-          PROJ_PATH=$(find . -name "*.xcodeproj" -maxdepth 3 | head -n 1)
-          
+          # Look for .xcodeproj or .xcworkspace anywhere in the repo
+          PROJ_PATH=$(find . \( -name "*.xcodeproj" -o -name "*.xcworkspace" \) | head -n 1)
+
           if [ -z "$PROJ_PATH" ]; then
-            echo "Error: Could not find any .xcodeproj file in the repository."
+            echo "::error::No .xcodeproj or .xcworkspace found in repository."
+            echo "--- DIRECTORY STRUCTURE ---"
+            ls -R
             exit 1
           fi
 
-          # Get directory name and project name
-          PROJ_DIR=$(dirname "$PROJ_PATH")
-          PROJ_NAME=$(basename "$PROJ_PATH")
-          SCHEME=$(basename "$PROJ_NAME" .xcodeproj)
-
           echo "Found project at: $PROJ_PATH"
-          echo "Building scheme: $SCHEME"
 
-          # Navigate to project folder
+          # Determine if it's a project or workspace
+          PROJ_DIR=$(dirname "$PROJ_PATH")
+          FILE_NAME=$(basename "$PROJ_PATH")
+          
           cd "$PROJ_DIR"
 
-          # Build archive
-          xcodebuild archive \
-            -project "$PROJ_NAME" \
-            -scheme "$SCHEME" \
-            -archivePath build.xcarchive \
-            -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+          if [[ "$FILE_NAME" == *.xcworkspace ]]; then
+            SCHEME=$(basename "$FILE_NAME" .xcworkspace)
+            xcodebuild archive \
+              -workspace "$FILE_NAME" \
+              -scheme "$SCHEME" \
+              -archivePath build.xcarchive \
+              -sdk iphoneos \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO
+          else
+            SCHEME=$(basename "$FILE_NAME" .xcodeproj)
+            xcodebuild archive \
+              -project "$FILE_NAME" \
+              -scheme "$SCHEME" \
+              -archivePath build.xcarchive \
+              -sdk iphoneos \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO
+          fi
 
-          # Create Payload and package IPA
+          # Package IPA
           mkdir Payload
           cp -R build.xcarchive/Products/Applications/*.app Payload/
           zip -r App.ipa Payload
 
-          # Move IPA to the root workspace directory for upload
+          # Move to workspace root
           mv App.ipa "$GITHUB_WORKSPACE/App.ipa"
 
       - uses: actions/upload-artifact@v4
