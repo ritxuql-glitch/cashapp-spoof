@@ -6,11 +6,26 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          xcodebuild archive -project *.xcodeproj -scheme $(basename *.xcodeproj .xcodeproj) -archivePath build.xcarchive -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+      - name: Build and Package IPA
+        run: |
+          # Find the exact .xcodeproj file name automatically
+          PROJ=$(basename *.xcodeproj)
+          SCHEME=$(basename "$PROJ" .xcodeproj)
+          
+          # Run xcodebuild using the explicit project variable
+          xcodebuild archive \
+            -project "$PROJ" \
+            -scheme "$SCHEME" \
+            -archivePath build.xcarchive \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+          
+          # Create Payload directory and zip into IPA
           mkdir Payload
           cp -R build.xcarchive/Products/Applications/*.app Payload/
           zip -r App.ipa Payload
+
       - uses: actions/upload-artifact@v4
         with:
           name: my-ipa-file
