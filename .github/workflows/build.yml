@@ -6,25 +6,44 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Build and Package IPA
         run: |
-          # Find the exact .xcodeproj file name automatically
-          PROJ=$(basename *.xcodeproj)
-          SCHEME=$(basename "$PROJ" .xcodeproj)
+          # Find the .xcodeproj file anywhere in the repo
+          PROJ_PATH=$(find . -name "*.xcodeproj" -maxdepth 3 | head -n 1)
           
-          # Run xcodebuild using the explicit project variable
+          if [ -z "$PROJ_PATH" ]; then
+            echo "Error: Could not find any .xcodeproj file in the repository."
+            exit 1
+          fi
+
+          # Get directory name and project name
+          PROJ_DIR=$(dirname "$PROJ_PATH")
+          PROJ_NAME=$(basename "$PROJ_PATH")
+          SCHEME=$(basename "$PROJ_NAME" .xcodeproj)
+
+          echo "Found project at: $PROJ_PATH"
+          echo "Building scheme: $SCHEME"
+
+          # Navigate to project folder
+          cd "$PROJ_DIR"
+
+          # Build archive
           xcodebuild archive \
-            -project "$PROJ" \
+            -project "$PROJ_NAME" \
             -scheme "$SCHEME" \
             -archivePath build.xcarchive \
             -sdk iphoneos \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
-          
-          # Create Payload directory and zip into IPA
+
+          # Create Payload and package IPA
           mkdir Payload
           cp -R build.xcarchive/Products/Applications/*.app Payload/
           zip -r App.ipa Payload
+
+          # Move IPA to the root workspace directory for upload
+          mv App.ipa "$GITHUB_WORKSPACE/App.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
