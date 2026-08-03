@@ -17,12 +17,12 @@ jobs:
             ZIP_DIR=$(dirname "$ZIPPED_PROJ")
             unzip -o "$ZIPPED_PROJ" -d "$ZIP_DIR"
             
-            # Remove macOS metadata folders to avoid invalid file references
+            # Remove macOS metadata
             rm -rf "$ZIP_DIR/__MACOSX"
             rm -rf ./__MACOSX
           fi
 
-          # Find the real .xcodeproj file
+          # Find real .xcodeproj path
           PROJ_PATH=$(find . -name "*.xcodeproj" -not -path "*/__MACOSX/*" | head -n 1)
 
           if [ -z "$PROJ_PATH" ]; then
@@ -32,25 +32,25 @@ jobs:
 
           PROJ_DIR=$(dirname "$PROJ_PATH")
           PROJ_NAME=$(basename "$PROJ_PATH")
-
-          # Explicitly set the scheme name from the xcscheme file found in unzipped logs
           SCHEME="CashappSpoof"
 
           echo "Found project: $PROJ_NAME"
-          echo "Building scheme: $SCHEME"
-
           cd "$PROJ_DIR"
 
-          # Build Archive
+          # Archive with legacy compatibility flags
           xcodebuild archive \
             -project "$PROJ_NAME" \
             -scheme "$SCHEME" \
             -archivePath build.xcarchive \
             -sdk iphoneos \
+            -configuration Release \
+            SWIFT_VERSION=5 \
+            SWIFT_SUPPRESS_WARNINGS=YES \
+            GCC_WARN_INHIBIT_ALL_WARNINGS=YES \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-          # Create Payload directory and package IPA
+          # Package IPA
           mkdir Payload
           cp -R build.xcarchive/Products/Applications/*.app Payload/
           zip -r App.ipa Payload
